@@ -2,311 +2,369 @@ clc;
 clear;
 close all;
 
-%% 1. ENVIRONMENT SETTINGS
+%% 1. Environment
 N = 10;
 H = 4;
 
-startPoint = [1 1 1];
-goalPoint  = [9 9 3];
+startPoint = [1 9 1];
+goalPoint  = [9 1 3];
 
 % Obstacles: [xmin xmax ymin ymax zmin zmax]
 obstacles = [
-    3 4  3 4  1 2;
-    5 6  6 7  1 3;
-    7 8  3 4  1 2;
-    2 2  7 8  1 3;
-    8 8  7 8  1 2;
-    5 6  2 2  1 3;
-    3 3  8 9  1 2;
-    7 7  5 6  1 3
+    3 4 3 4 1 2
+    5 6 6 7 1 3
+    7 8 3 4 1 2
+    2 2 7 8 1 3
+    8 8 7 8 1 2
+    5 6 2 2 1 3
+    3 3 8 9 1 2
+    7 7 5 6 1 3
 ];
 
-%% 2. BUILD 3D OCCUPANCY GRID
 blocked = false(N,N,H);
 
 for k = 1:size(obstacles,1)
-    b = obstacles(k,:);
-
-    blocked(b(3):b(4), ...
-            b(1):b(2), ...
-            b(5):b(6)) = true;
+    o = obstacles(k,:);
+    blocked(o(1):o(2),o(3):o(4),o(5):o(6)) = true;
 end
 
-blocked(startPoint(2),startPoint(1),startPoint(3)) = false;
-blocked(goalPoint(2),goalPoint(1),goalPoint(3)) = false;
+blocked(startPoint(1),startPoint(2),startPoint(3)) = false;
+blocked(goalPoint(1),goalPoint(2),goalPoint(3)) = false;
 
-%% 3. PLAN PATH USING A*
-tic;
-[path,nodesExplored] = astar3D( ...
-    blocked,startPoint,goalPoint);
-computationTime = toc;
+%% 2. Find A* path
+path = astar3D(blocked,startPoint,goalPoint);
 
 if isempty(path)
-    error('No safe path found. Change obstacle positions.');
+    error('No safe path found!');
 end
 
-pathLength = sum(vecnorm(diff(path,1,1),2,2));
+fprintf('Path found successfully!\n');
+fprintf('Path length: %d steps\n',size(path,1));
 
-fprintf('\n===== DRONE PATH PLANNING RESULTS =====\n');
-fprintf('Algorithm: 3D A*\n');
-fprintf('Path points: %d\n',size(path,1));
-fprintf('Path length: %.2f grid units\n',pathLength);
-fprintf('Nodes explored: %d\n',nodesExplored);
-fprintf('Computation time: %.6f seconds\n',computationTime);
-
-%% 4. DRAW 3D ENVIRONMENT
+%% 3. Create 3D figure
 fig = figure( ...
-    'Name','3D Drone Path Planning', ...
-    'Color',[0.04 0.07 0.12]);
+    'Name','Hand Gesture Drone Simulation', ...
+    'NumberTitle','off', ...
+    'Color',[0.08 0.10 0.15]);
 
 ax = axes(fig);
 hold(ax,'on');
 grid(ax,'on');
-box(ax,'on');
+axis(ax,[0 N+1 0 N+1 0 H+1]);
+axis(ax,'equal');
+view(ax,42,28);
 
-set(ax,'Color',[0.04 0.07 0.12], ...
-    'XColor','w','YColor','w','ZColor','w');
-
-xlim(ax,[0.5 N+0.5]);
-ylim(ax,[0.5 N+0.5]);
-zlim(ax,[0.5 H+0.5]);
-
-xticks(ax,1:N);
-yticks(ax,1:N);
-zticks(ax,1:H);
-
-xlabel(ax,'X Position');
-ylabel(ax,'Y Position');
+xlabel(ax,'X');
+ylabel(ax,'Y');
 zlabel(ax,'Altitude Z');
 
-title(ax,'3D Drone Path Planning and Obstacle Avoidance', ...
-    'Color','w');
+title(ax,'3D Drone - Hand Gesture Control','Color','w');
 
-view(ax,42,28);
-axis(ax,'vis3d');
+ax.Color = [0.08 0.10 0.15];
+ax.XColor = 'w';
+ax.YColor = 'w';
+ax.ZColor = 'w';
+ax.GridColor = [0.5 0.5 0.5];
 
-% Draw obstacle cuboids
+%% 4. Draw obstacles
 for k = 1:size(obstacles,1)
-    b = obstacles(k,:);
-
-    drawCuboid(ax, ...
-        [b(1)-0.45,b(3)-0.45,b(5)-0.45], ...
-        [b(2)+0.45,b(4)+0.45,b(6)+0.45]);
+    o = obstacles(k,:);
+    drawCuboid(ax,o,[0.85 0.15 0.15]);
 end
 
-% Planned path
-hPath = plot3(ax,path(:,1),path(:,2),path(:,3), ...
-    '--','Color',[0 0.8 1],'LineWidth',2);
+%% 5. Draw planned path
+plot3(ax,path(:,1),path(:,2),path(:,3), ...
+    'b--','LineWidth',2);
 
-% Start and goal
-hStart = plot3(ax,startPoint(1),startPoint(2),startPoint(3), ...
-    'o','MarkerSize',10,'MarkerFaceColor',[0.1 1 0.3], ...
-    'MarkerEdgeColor','w');
+plot3(ax,startPoint(1),startPoint(2),startPoint(3), ...
+    'go','MarkerSize',12,'MarkerFaceColor','g');
 
-hGoal = plot3(ax,goalPoint(1),goalPoint(2),goalPoint(3), ...
-    'p','MarkerSize',15,'MarkerFaceColor',[1 0.1 0.8], ...
-    'MarkerEdgeColor','w');
+plot3(ax,goalPoint(1),goalPoint(2),goalPoint(3), ...
+    'mo','MarkerSize',12,'MarkerFaceColor','m');
 
-% Drone marker and travelled path
-hDrone = plot3(ax,startPoint(1),startPoint(2),startPoint(3), ...
-    'o','MarkerSize',12,'MarkerFaceColor',[0.1 0.6 1], ...
-    'MarkerEdgeColor','w');
+text(ax,startPoint(1),startPoint(2),startPoint(3)+0.4, ...
+    'START','Color','g','FontWeight','bold');
 
-hTrail = plot3(ax,startPoint(1),startPoint(2),startPoint(3), ...
-    '-','Color',[1 0.8 0.1],'LineWidth',2);
+text(ax,goalPoint(1),goalPoint(2),goalPoint(3)+0.4, ...
+    'GOAL','Color','m','FontWeight','bold');
 
-hInfo = title(ax,'Drone ready','Color','w');
+%% 6. Drone graphics
+position = startPoint;
 
-legend(ax,[hPath,hStart,hGoal,hDrone,hTrail], ...
-    {'Planned path','Start','Goal','Drone','Travelled path'}, ...
-    'TextColor','w','Color',[0.05 0.08 0.13], ...
-    'Location','northeastoutside');
+drone = plot3(ax,position(1),position(2),position(3), ...
+    'bo','MarkerSize',13,'MarkerFaceColor','b');
 
-drawnow;
+trail = plot3(ax,position(1),position(2),position(3), ...
+    'c-','LineWidth',3);
 
-%% 5. SMOOTH DRONE ANIMATION
-stepsPerMove = 8;
-pauseTime = 0.04;
-trajectory = path(1,:);
+trailPoints = position;
 
-for i = 1:size(path,1)-1
+statusText = text(ax,0.5,0.5,H+1, ...
+    'Command: STOP', ...
+    'Color','w','FontSize',11,'FontWeight','bold');
 
-    p1 = path(i,:);
-    p2 = path(i+1,:);
+%% 7. Speed settings
+moveDelay = 0.015;
+moveStep = 0.12;
 
-    for j = 1:stepsPerMove
+% Command file used by Python
+commandFile = fullfile(pwd,'command.txt');
 
-        t = j/stepsPerMove;
-        pos = p1 + t*(p2-p1);
+lastCommand = 'STOP';
+collisionAlarm = false;
 
-        set(hDrone,'XData',pos(1), ...
-                   'YData',pos(2), ...
-                   'ZData',pos(3));
+%% 8. Main control loop
+disp('Drone simulation started.');
+disp('Start Python hand_detection.py to control the drone.');
 
-        travelled = [trajectory; pos];
+while ishandle(fig)
 
-        set(hTrail,'XData',travelled(:,1), ...
-                   'YData',travelled(:,2), ...
-                   'ZData',travelled(:,3));
+    % Read Python command
+    command = 'STOP';
 
-        set(hInfo,'String',sprintf( ...
-            'Position: (%.1f, %.1f, %.1f)', ...
-            pos(1),pos(2),pos(3)));
-
-        drawnow;
-        pause(pauseTime);
+    if isfile(commandFile)
+        try
+            command = upper(strtrim(fileread(commandFile)));
+        catch
+            command = 'STOP';
+        end
     end
 
-    trajectory = [trajectory; p2];
+    % Calculate movement
+    newPosition = position;
+
+    switch command
+        case 'FORWARD'
+            newPosition(2) = newPosition(2)+moveStep;
+
+        case 'BACKWARD'
+            newPosition(2) = newPosition(2)-moveStep;
+
+        case 'RIGHT'
+            newPosition(1) = newPosition(1)+moveStep;
+
+        case 'LEFT'
+            newPosition(1) = newPosition(1)-moveStep;
+
+        case 'UP'
+            newPosition(3) = newPosition(3)+moveStep;
+
+        case 'DOWN'
+            newPosition(3) = newPosition(3)-moveStep;
+
+        otherwise
+            newPosition = position;
+    end
+
+    % Keep drone inside the environment
+    newPosition = max(newPosition,[1 1 1]);
+    newPosition = min(newPosition,[N N H]);
+
+    % Check collision
+    collision = checkCollision(blocked,newPosition);
+
+    if collision
+        if ~collisionAlarm
+            beep;
+            fprintf('WARNING: Drone collision detected!\n');
+            collisionAlarm = true;
+        end
+
+        newPosition = position;
+
+        set(statusText,'String', ...
+            ['COLLISION! Command: ' command], ...
+            'Color','r');
+
+    else
+        collisionAlarm = false;
+
+        set(statusText,'String', ...
+            ['Command: ' command], ...
+            'Color','w');
+    end
+
+    % Update drone only when movement is safe
+    if any(newPosition ~= position)
+
+        position = newPosition;
+
+        set(drone, ...
+            'XData',position(1), ...
+            'YData',position(2), ...
+            'ZData',position(3));
+
+        trailPoints = [trailPoints; position];
+
+        set(trail, ...
+            'XData',trailPoints(:,1), ...
+            'YData',trailPoints(:,2), ...
+            'ZData',trailPoints(:,3));
+
+    end
+
+    drawnow limitrate;
+    pause(moveDelay);
+
 end
 
-set(hDrone,'XData',goalPoint(1), ...
-           'YData',goalPoint(2), ...
-           'ZData',goalPoint(3));
+disp('Simulation stopped.');
 
-set(hInfo,'String','Destination reached!');
-fprintf('Status: Destination reached successfully.\n');
+%% 9. Collision detection function
+function collision = checkCollision(blocked,p)
 
-%% 6. A* PATH PLANNING FUNCTION
-function [path,nodesExplored] = astar3D(blocked,startP,goalP)
+    x = round(p(1));
+    y = round(p(2));
+    z = round(p(3));
 
-    [ny,nx,nz] = size(blocked);
-    path = [];
-    nodesExplored = 0;
+    collision = false;
 
-    startIdx = sub2ind([ny,nx,nz], ...
-        startP(2),startP(1),startP(3));
+    if x < 1 || x > size(blocked,1) || ...
+       y < 1 || y > size(blocked,2) || ...
+       z < 1 || z > size(blocked,3)
 
-    goalIdx = sub2ind([ny,nx,nz], ...
-        goalP(2),goalP(1),goalP(3));
-
-    if blocked(startP(2),startP(1),startP(3)) || ...
-       blocked(goalP(2),goalP(1),goalP(3))
+        collision = true;
         return;
     end
 
-    gScore = inf(ny,nx,nz);
-    fScore = inf(ny,nx,nz);
+    collision = blocked(x,y,z);
 
-    parent = zeros(ny,nx,nz);
-    closed = false(ny,nx,nz);
-
-    gScore(startIdx) = 0;
-    fScore(startIdx) = sum(abs(startP-goalP));
-
-    % Six movement directions
-    dirs = [
-         1  0  0;
-        -1  0  0;
-         0  1  0;
-         0 -1  0;
-         0  0  1;
-         0  0 -1
-    ];
-
-    while true
-
-        candidates = find(~closed & isfinite(fScore));
-
-        if isempty(candidates)
-            return;
-        end
-
-        [~,k] = min(fScore(candidates));
-        current = candidates(k);
-
-        if current == goalIdx
-            break;
-        end
-
-        closed(current) = true;
-        nodesExplored = nodesExplored + 1;
-
-        [y,x,z] = ind2sub([ny,nx,nz],current);
-
-        for d = 1:size(dirs,1)
-
-            xx = x + dirs(d,1);
-            yy = y + dirs(d,2);
-            zz = z + dirs(d,3);
-
-            if xx < 1 || xx > nx || ...
-               yy < 1 || yy > ny || ...
-               zz < 1 || zz > nz
-                continue;
-            end
-
-            if blocked(yy,xx,zz) || closed(yy,xx,zz)
-                continue;
-            end
-
-            neighbor = sub2ind([ny,nx,nz],yy,xx,zz);
-            tentativeG = gScore(current) + 1;
-
-            if tentativeG < gScore(neighbor)
-
-                parent(neighbor) = current;
-                gScore(neighbor) = tentativeG;
-
-                heuristic = abs(xx-goalP(1)) + ...
-                            abs(yy-goalP(2)) + ...
-                            abs(zz-goalP(3));
-
-                fScore(neighbor) = tentativeG + heuristic;
-            end
-        end
-    end
-
-    % Reconstruct path
-    current = goalIdx;
-    indices = current;
-
-    while current ~= startIdx
-
-        current = parent(current);
-
-        if current == 0
-            path = [];
-            return;
-        end
-
-        indices = [current;indices];
-    end
-
-    [ys,xs,zs] = ind2sub([ny,nx,nz],indices);
-    path = [xs(:),ys(:),zs(:)];
 end
 
-%% 7. DRAW 3D OBSTACLES
-function drawCuboid(ax,lo,hi)
+%% 10. Draw cuboid function
+function drawCuboid(ax,o,color)
 
-    x = [lo(1) hi(1)];
-    y = [lo(2) hi(2)];
-    z = [lo(3) hi(3)];
+    x1=o(1)-0.5; x2=o(2)+0.5;
+    y1=o(3)-0.5; y2=o(4)+0.5;
+    z1=o(5)-0.5; z2=o(6)+0.5;
 
-    V = [
-        x(1) y(1) z(1);
-        x(2) y(1) z(1);
-        x(2) y(2) z(1);
-        x(1) y(2) z(1);
-        x(1) y(1) z(2);
-        x(2) y(1) z(2);
-        x(2) y(2) z(2);
-        x(1) y(2) z(2)
+    vertices = [
+        x1 y1 z1
+        x2 y1 z1
+        x2 y2 z1
+        x1 y2 z1
+        x1 y1 z2
+        x2 y1 z2
+        x2 y2 z2
+        x1 y2 z2
     ];
 
-    F = [
-        1 2 3 4;
-        5 6 7 8;
-        1 2 6 5;
-        2 3 7 6;
-        3 4 8 7;
+    faces = [
+        1 2 3 4
+        5 6 7 8
+        1 2 6 5
+        2 3 7 6
+        3 4 8 7
         4 1 5 8
     ];
 
-    patch(ax,'Vertices',V,'Faces',F, ...
-        'FaceColor',[1 0.08 0.12], ...
-        'FaceAlpha',0.45, ...
-        'EdgeColor',[1 0.25 0.3], ...
-        'LineWidth',1.2);
+    patch(ax, ...
+        'Vertices',vertices, ...
+        'Faces',faces, ...
+        'FaceColor',color, ...
+        'FaceAlpha',0.85, ...
+        'EdgeColor','w');
+
+end
+
+%% 11. A* 3D path planning
+function path = astar3D(blocked,startPoint,goalPoint)
+
+    moves = [
+         1  0  0
+        -1  0  0
+         0  1  0
+         0 -1  0
+         0  0  1
+         0  0 -1
+    ];
+
+    dims = size(blocked);
+
+    openSet = startPoint;
+    gScore = inf(dims);
+    fScore = inf(dims);
+
+    parent = zeros([dims 3]);
+
+    gScore(startPoint(1),startPoint(2),startPoint(3)) = 0;
+
+    fScore(startPoint(1),startPoint(2),startPoint(3)) = ...
+        norm(startPoint-goalPoint);
+
+    path = [];
+
+    while ~isempty(openSet)
+
+        scores = zeros(size(openSet,1),1);
+
+        for i = 1:size(openSet,1)
+            p = openSet(i,:);
+            scores(i) = fScore(p(1),p(2),p(3));
+        end
+
+        [~,idx] = min(scores);
+        current = openSet(idx,:);
+
+        openSet(idx,:) = [];
+
+        if isequal(current,goalPoint)
+
+            path = current;
+
+            while ~isequal(current,startPoint)
+
+                p = squeeze(parent( ...
+                    current(1),current(2),current(3),:))';
+
+                if all(p==0)
+                    path = [];
+                    return;
+                end
+
+                current = p;
+                path = [current;path];
+
+            end
+
+            return;
+        end
+
+        for i = 1:size(moves,1)
+
+            neighbor = current + moves(i,:);
+
+            if any(neighbor < 1) || ...
+               any(neighbor > dims)
+                continue;
+            end
+
+            x=neighbor(1);
+            y=neighbor(2);
+            z=neighbor(3);
+
+            if blocked(x,y,z)
+                continue;
+            end
+
+            tentativeG = ...
+                gScore(current(1),current(2),current(3))+1;
+
+            if tentativeG < gScore(x,y,z)
+
+                parent(x,y,z,:) = current;
+
+                gScore(x,y,z) = tentativeG;
+
+                fScore(x,y,z) = tentativeG + ...
+                    norm(neighbor-goalPoint);
+
+                if ~ismember(neighbor,openSet,'rows')
+                    openSet = [openSet;neighbor];
+                end
+
+            end
+        end
+    end
+
 end
